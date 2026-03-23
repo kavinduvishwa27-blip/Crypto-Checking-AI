@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarketPulse Pro | TradingView + 8-Strategy Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Sora','sans-serif'],mono:['Space Mono','monospace']}}}}</script>
+    <style>
+        *,*::before,*::after{box-sizing:border-box}
+        :root{--ink:#060b14;--panel:#0d1624;--panel2:#111c2e;--border:#1a2540;--accent:#00d4ff;--gold:#ffd166;--bull:#00e676;--bear:#ff3d5a;--muted:#8899b0}
+        body{font-family:'Sora',sans-serif;background:var(--ink);color:#e2eaf5;margin:0;overflow-x:hidden}
+        body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,0.005) 2px,rgba(0,212,255,0.005) 4px);pointer-events:none;z-index:0}
+        .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;position:relative;overflow:hidden}
+        .panel-accent{border-top:2px solid var(--accent)}
+        .panel-gold{border-top:2px solid var(--gold)}
+        .panel-bull{border-top:2px solid var(--bull)}
+        .panel-tv{border-top:2px solid #2962ff}
+
+        /* TICKER */
+        .ticker-wrap{overflow:hidden;background:#07101f;border-bottom:1px solid var(--border)}
+        .ticker-inner{display:flex;animation:tickerMove 60s linear infinite;white-space:nowrap;width:max-content}
+        .ticker-inner:hover{animation-play-state:paused}
+        @keyframes tickerMove{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+        @keyframes flashGreen{0%,100%{color:#e2eaf5}30%{color:var(--bull);text-shadow:0 0 20px rgba(0,230,118,0.9)}}
+        @keyframes flashRed{0%,100%{color:#e2eaf5}30%{color:var(--bear);text-shadow:0 0 20px rgba(255,61,90,0.9)}}
+        .flash-up{animation:flashGreen 0.7s ease}
+        .flash-down{animation:flashRed 0.7s ease}
+        .signal-buy{background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.4);box-shadow:0 0 30px rgba(0,230,118,0.12)}
+        .signal-sell{background:rgba(255,61,90,0.08);border:1px solid rgba(255,61,90,0.4);box-shadow:0 0 30px rgba(255,61,90,0.12)}
+        .signal-wait{background:rgba(255,209,102,0.07);border:1px solid rgba(255,209,102,0.3)}
+        .signal-neutral{background:rgba(136,153,176,0.06);border:1px solid rgba(136,153,176,0.2)}
+        .live-dot{width:8px;height:8px;border-radius:50%;background:var(--bull);animation:livePulse 1.8s ease-out infinite}
+        @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(0,230,118,0.7)}70%{box-shadow:0 0 0 10px rgba(0,230,118,0)}100%{box-shadow:0 0 0 0 rgba(0,230,118,0)}}
+        .offline-dot{width:8px;height:8px;border-radius:50%;background:var(--bear)}
+        .gauge-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden}
+        .gauge-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(0.4,0,0.2,1)}
+        .ind-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+        .ind-row:last-child{border-bottom:none}
+        .ind-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.05em;font-family:'Space Mono',monospace;white-space:nowrap}
+        .ind-bull{background:rgba(0,230,118,0.15);color:var(--bull)}
+        .ind-bear{background:rgba(255,61,90,0.15);color:var(--bear)}
+        .ind-neut{background:rgba(255,209,102,0.12);color:var(--gold)}
+        .news-item{border-left:3px solid var(--border);padding:5px 0 5px 10px;transition:all 0.2s;cursor:pointer}
+        .news-item:hover{border-left-color:var(--accent);background:rgba(0,212,255,0.03);border-radius:0 6px 6px 0}
+        .news-item.bullish{border-left-color:rgba(0,230,118,0.5)}
+        .news-item.bearish{border-left-color:rgba(255,61,90,0.5)}
+        .layer-btn{opacity:0.4;transition:opacity 0.2s}
+        .layer-btn.active{opacity:1}
+        .mono{font-family:'Space Mono',monospace}
+        ::-webkit-scrollbar{width:5px}
+        ::-webkit-scrollbar-track{background:var(--ink)}
+        ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+        select option{background:var(--panel);color:#e2eaf5}
+        .interval-btn.active{background:rgba(0,212,255,0.12);color:var(--accent)}
+
+        /* BANNER */
+        #signalBanner{position:sticky;top:0;z-index:200;transition:background 0.5s,box-shadow 0.5s,border-color 0.5s;border-bottom:3px solid transparent}
+        #signalBanner.buy{background:linear-gradient(135deg,#002d12,#001a0a 50%,#002d12);border-bottom-color:var(--bull);box-shadow:0 4px 60px rgba(0,230,118,0.25)}
+        #signalBanner.sell{background:linear-gradient(135deg,#2d0010,#1a0008 50%,#2d0010);border-bottom-color:var(--bear);box-shadow:0 4px 60px rgba(255,61,90,0.25)}
+        #signalBanner.wait{background:linear-gradient(135deg,#1e1500,#110e00 50%,#1e1500);border-bottom-color:var(--gold);box-shadow:0 4px 30px rgba(255,209,102,0.15)}
+        #signalBanner.neutral{background:#07101f;border-bottom-color:var(--border)}
+        .tl-dot{width:22px;height:22px;border-radius:50%;transition:all 0.4s;flex-shrink:0}
+        .tl-red{background:#2a0a10;border:2px solid #4a1020}
+        .tl-yellow{background:#1a1200;border:2px solid #3a2600}
+        .tl-green{background:#001a08;border:2px solid #003010}
+        .tl-red.on{background:var(--bear);border-color:var(--bear);box-shadow:0 0 14px var(--bear),0 0 28px rgba(255,61,90,0.3)}
+        .tl-yellow.on{background:var(--gold);border-color:var(--gold);box-shadow:0 0 14px var(--gold),0 0 28px rgba(255,209,102,0.3)}
+        .tl-green.on{background:var(--bull);border-color:var(--bull);box-shadow:0 0 14px var(--bull),0 0 28px rgba(0,230,118,0.3)}
+        @keyframes signalPulse{0%,100%{opacity:1}50%{opacity:0.65}}
+        .signal-pulse{animation:signalPulse 2s ease-in-out infinite}
+        .banner-box{border-radius:10px;padding:8px 14px;text-align:center;min-width:100px}
+        .bb-gray{background:rgba(136,153,176,0.08);border:1px solid rgba(136,153,176,0.2)}
+        .bb-green{background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.25)}
+        .bb-red{background:rgba(255,61,90,0.08);border:1px solid rgba(255,61,90,0.25)}
+        .score-ring{position:relative;width:56px;height:56px}
+        .score-ring svg{transform:rotate(-90deg)}
+        .ring-bg{fill:none;stroke:#1a2540;stroke-width:5}
+        .ring-val{fill:none;stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 1s ease,stroke 0.5s}
+        .ring-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-weight:700;font-size:13px}
+        #signalToast{position:fixed;bottom:24px;right:24px;z-index:9999;transition:opacity 0.4s,transform 0.4s;pointer-events:none}
+        #signalToast.hidden{opacity:0;transform:translateY(20px)}
+        #soundToggle{cursor:pointer;border-radius:10px;padding:7px 12px;font-size:13px;transition:all 0.2s;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--muted)}
+        #soundToggle.on{border-color:rgba(255,209,102,0.5);color:var(--gold);background:rgba(255,209,102,0.08)}
+
+        /* Strategy cards */
+        .strategies-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+        @media(max-width:1100px){.strategies-grid{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:600px){.strategies-grid{grid-template-columns:1fr}}
+        .strat-card{border-radius:12px;padding:14px;transition:all 0.3s;position:relative;overflow:hidden}
+        .sc-buy{background:rgba(0,230,118,0.06);border:1px solid rgba(0,230,118,0.28)}
+        .sc-sell{background:rgba(255,61,90,0.06);border:1px solid rgba(255,61,90,0.28)}
+        .sc-lean-buy{background:rgba(0,230,118,0.03);border:1px solid rgba(0,230,118,0.15)}
+        .sc-lean-sell{background:rgba(255,61,90,0.03);border:1px solid rgba(255,61,90,0.15)}
+        .sc-hold{background:rgba(255,209,102,0.04);border:1px solid rgba(255,209,102,0.2)}
+        .sc-neutral{background:rgba(136,153,176,0.04);border:1px solid rgba(136,153,176,0.15)}
+        .conf-track{height:3px;border-radius:2px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px}
+        .conf-fill{height:100%;border-radius:2px;transition:width 1s ease}
+        .hc-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;font-family:'Space Mono',monospace;letter-spacing:0.05em}
+        .hc-strong-buy{background:rgba(0,230,118,0.2);color:var(--bull);border:1px solid rgba(0,230,118,0.4)}
+        .hc-strong-sell{background:rgba(255,61,90,0.2);color:var(--bear);border:1px solid rgba(255,61,90,0.4)}
+        .hc-lean{background:rgba(255,209,102,0.15);color:var(--gold);border:1px solid rgba(255,209,102,0.3)}
+        .hc-neutral{background:rgba(136,153,176,0.1);color:var(--muted);border:1px solid rgba(136,153,176,0.2)}
+        .verdict-buy{background:rgba(0,230,118,0.07);border:1px solid rgba(0,230,118,0.35)}
+        .verdict-sell{background:rgba(255,61,90,0.07);border:1px solid rgba(255,61,90,0.35)}
+        .verdict-lean{background:rgba(255,209,102,0.05);border:1px solid rgba(255,209,102,0.25)}
+        .verdict-neutral{background:rgba(136,153,176,0.04);border:1px solid rgba(136,153,176,0.2)}
+        .vote-track{height:8px;border-radius:4px;overflow:hidden;background:var(--border);display:flex}
+        .vote-bull-bar{height:100%;border-radius:4px 0 0 4px;background:var(--bull);transition:width 1s ease}
+        .vote-bear-bar{height:100%;border-radius:0 4px 4px 0;background:var(--bear);transition:width 1s ease;margin-left:auto}
+        .disclaimer{background:rgba(255,209,102,0.04);border:1px solid rgba(255,209,102,0.15);border-radius:12px}
+
+        /* Settings panel */
+        #settingsPanel{position:fixed;top:70px;right:20px;z-index:500;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+        .api-input{width:100%;background:var(--ink);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:#e2eaf5;font-family:'Space Mono',monospace;font-size:12px;outline:none;transition:border-color 0.2s}
+        .api-input:focus{border-color:var(--accent)}
+
+        /* Multi-timeframe panel */
+        .mtf-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+        .mtf-card{border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);background:var(--ink);transition:all 0.3s}
+        .mtf-buy{background:rgba(0,230,118,0.08);border-color:rgba(0,230,118,0.3)}
+        .mtf-sell{background:rgba(255,61,90,0.08);border-color:rgba(255,61,90,0.3)}
+        .mtf-lean{background:rgba(255,209,102,0.06);border-color:rgba(255,209,102,0.25)}
+        .mtf-hold{background:rgba(136,153,176,0.05);border-color:rgba(136,153,176,0.2)}
+
+        /* TradingView widget containers */
+        .tv-widget-wrap{border-radius:14px;overflow:hidden;border:1px solid var(--border)}
+
+        /* Fear & Greed */
+        .fg-arc{transition:stroke-dasharray 1.5s ease}
+
+        /* Tab system */
+        .tab-btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;border:1px solid transparent;color:var(--muted)}
+        .tab-btn.active{background:rgba(0,212,255,0.12);color:var(--accent);border-color:rgba(0,212,255,0.3)}
+        .tab-panel{display:none}
+        .tab-panel.active{display:block}
+        /* Final Verdict Panel */
+        #fvGrid{grid-template-columns:1fr 1fr 1fr}
+        @media(max-width:900px){#fvGrid{grid-template-columns:1fr 1fr}}
+        @media(max-width:900px){#fvGrid>div:nth-child(3){grid-column:1/-1;border-left:none;padding-left:0;border-top:1px solid var(--border);padding-top:16px}}
+        @media(max-width:600px){#fvGrid{grid-template-columns:1fr}}
+        @media(max-width:600px){#fvGrid>div{grid-column:1/-1!important;border-left:none!important;padding-left:0!important;border-top:1px solid var(--border);padding-top:14px}}
+        @media(max-width:600px){#fvGrid>div:first-child{border-top:none;padding-top:0}}
+        .fv-buy{border-color:rgba(0,230,118,0.5)!important;box-shadow:0 0 60px rgba(0,230,118,0.12)}
+        .fv-sell{border-color:rgba(255,61,90,0.5)!important;box-shadow:0 0 60px rgba(255,61,90,0.12)}
+        .fv-lean{border-color:rgba(255,209,102,0.4)!important;box-shadow:0 0 40px rgba(255,209,102,0.08)}
+        .fv-hold{border-color:rgba(136,153,176,0.3)!important}
+        @keyframes fvPulse{0%,100%{opacity:1}50%{opacity:0.6}}
+        .fv-pulse{animation:fvPulse 2.2s ease-in-out infinite}
+        .risk-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     FULL-PAGE ACCESS GATE — blocks ALL content until login
+     ══════════════════════════════════════════════════════ -->
+<div id="accessGate" style="position:fixed;inset:0;z-index:99999;background:#060b14;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif">
+    <!-- animated grid bg -->
+    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);background-size:48px 48px;pointer-events:none"></div>
+    <!-- glow blob -->
+    <div style="position:absolute;top:20%;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(0,212,255,0.07) 0%,transparent 70%);pointer-events:none"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:420px;padding:0 20px">
+        <!-- logo / brand -->
+        <div style="text-align:center;margin-bottom:36px">
+            <div style="width:64px;height:64px;border-radius:18px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.25);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 0 40px rgba(0,212,255,0.12)">
+                <i class="fa-solid fa-chart-candlestick" style="color:#00d4ff;font-size:26px"></i>
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:1.4rem;font-weight:700;color:#e2eaf5;letter-spacing:0.06em">MarketPulse <span style="color:#00d4ff">Pro</span></div>
+            <div style="font-size:12px;color:#8899b0;margin-top:6px;letter-spacing:0.04em">Restricted Access · Authorised Users Only</div>
+        </div>
+
+        <!-- login card -->
+        <div style="background:#0d1624;border:1px solid #1a2540;border-radius:20px;padding:36px 32px;box-shadow:0 24px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(0,212,255,0.04)">
+            <div style="font-size:11px;font-weight:700;color:#8899b0;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:22px;text-align:center">Sign in to continue</div>
+
+            <!-- username -->
+            <div style="margin-bottom:16px">
+                <label style="display:block;font-size:11px;font-weight:700;color:#8899b0;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px">Username</label>
+                <div style="position:relative">
+                    <i class="fa-solid fa-user" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8899b0;font-size:13px;pointer-events:none"></i>
+                    <input type="text" id="gateUser" autocomplete="username" placeholder="Enter username"
+                        style="width:100%;background:#060b14;border:1px solid #1a2540;border-radius:12px;padding:12px 14px 12px 40px;color:#e2eaf5;font-family:'Space Mono',monospace;font-size:13px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;box-sizing:border-box"
+                        onfocus="this.style.borderColor='#00d4ff';this.style.boxShadow='0 0 0 3px rgba(0,212,255,0.1)'"
+                        onblur="this.style.borderColor='#1a2540';this.style.boxShadow='none'"
+                        onkeydown="if(event.key==='Enter')document.getElementById('gatePass').focus()">
+                </div>
+            </div>
+
+            <!-- password -->
+            <div style="margin-bottom:10px">
+                <label style="display:block;font-size:11px;font-weight:700;color:#8899b0;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px">Password</label>
+                <div style="position:relative">
+                    <i class="fa-solid fa-lock" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8899b0;font-size:13px;pointer-events:none"></i>
+                    <input type="password" id="gatePass" autocomplete="current-password" placeholder="Enter password"
+                        style="width:100%;background:#060b14;border:1px solid #1a2540;border-radius:12px;padding:12px 44px 12px 40px;color:#e2eaf5;font-family:'Space Mono',monospace;font-size:13px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;box-sizing:border-box"
+                        onfocus="this.style.borderColor='#00d4ff';this.style.boxShadow='0 0 0 3px rgba(0,212,255,0.1)'"
+                        onblur="this.style.borderColor='#1a2540';this.style.boxShadow='none'"
+                        onkeydown="if(event.key==='Enter')attemptLogin()">
+                    <button id="togglePassBtn" onclick="togglePassVis()" type="button"
+                        style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:#8899b0;cursor:pointer;font-size:13px;padding:0" title="Show/hide password">
+                        <i class="fa-solid fa-eye" id="passEyeIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- remember me -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:22px;cursor:pointer" onclick="toggleRemember()">
+                <div id="rememberBox" style="width:16px;height:16px;border-radius:4px;border:1px solid #1a2540;background:#060b14;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0">
+                    <i class="fa-solid fa-check" id="rememberCheck" style="font-size:9px;color:#00d4ff;display:none"></i>
+                </div>
+                <span style="font-size:12px;color:#8899b0;user-select:none">Keep me signed in for 7 days</span>
+            </div>
+
+            <!-- error message -->
+            <div id="gateError" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:10px;background:rgba(255,61,90,0.08);border:1px solid rgba(255,61,90,0.3);color:#ff3d5a;font-size:12px;font-family:'Space Mono',monospace;text-align:center">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i> <span id="gateErrorMsg">Invalid username or password</span>
+            </div>
+
+            <!-- login button -->
+            <button id="gateLoginBtn" onclick="attemptLogin()"
+                style="width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#00d4ff,#0099bb);color:#000;font-weight:900;font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.08em;border:none;cursor:pointer;transition:opacity 0.2s,transform 0.1s;position:relative;overflow:hidden"
+                onmouseover="this.style.opacity='0.92'" onmouseout="this.style.opacity='1'"
+                onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+                <span id="gateBtnText"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i>ACCESS DASHBOARD</span>
+                <span id="gateBtnLoad" style="display:none"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Verifying…</span>
+            </button>
+        </div>
+
+        <!-- footer note -->
+        <div style="text-align:center;margin-top:20px;font-size:11px;color:#8899b0">
+            <i class="fa-solid fa-shield-halved mr-1" style="color:#00d4ff"></i>
+            Secured · Authorised access only · All sessions logged
+        </div>
+    </div>
+</div>
+
+<!-- ══ SITE CONTENT — hidden until login ══ -->
+<div id="siteContent" style="display:none">
+
+<!-- ══ SESSION BAR (top-right when logged in) ══ -->
+<div id="sessionBar" style="position:fixed;top:12px;right:16px;z-index:9500;display:flex;align-items:center;gap:8px">
+    <div style="background:#0d1624;border:1px solid #1a2540;border-radius:10px;padding:6px 14px;display:flex;align-items:center;gap:8px;font-size:12px">
+        <i class="fa-solid fa-circle-user" style="color:#00d4ff;font-size:14px"></i>
+        <span id="sessionUsername" style="color:#e2eaf5;font-weight:600;font-family:'Space Mono',monospace"></span>
+        <span style="color:#1a2540">|</span>
+        <button onclick="logoutUser()" style="background:none;border:none;color:#8899b0;font-size:12px;cursor:pointer;padding:0;font-family:'Sora',sans-serif" onmouseover="this.style.color='#ff3d5a'" onmouseout="this.style.color='#8899b0'">
+            <i class="fa-solid fa-right-from-bracket mr-1"></i>Sign out
+        </button>
+    </div>
+</div>
+
+<!-- Settings Panel -->
+<div id="settingsPanel" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2"><i class="fa-solid fa-newspaper" style="color:var(--gold)"></i><span class="text-sm font-bold text-white">Finnhub News Key</span></div>
+        <button onclick="openSettings()" style="color:var(--muted);background:none;border:none;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <p class="text-xs mb-3" style="color:var(--muted)">Optional: free Finnhub key for better news. <a href="https://finnhub.io/register" target="_blank" style="color:var(--gold)">Get free key →</a></p>
+    <input type="text" id="fhKeyInput" class="api-input mb-3" placeholder="Paste Finnhub API key here…">
+    <button onclick="saveFinnhubKey()" class="w-full py-2.5 rounded-xl font-bold text-sm text-black" style="background:linear-gradient(135deg,var(--gold),#ffb700)">Save & Reload</button>
+</div>
+
+<!-- TradingView Ticker Tape -->
+<div class="ticker-wrap" style="padding:0">
+    <div class="tradingview-widget-container" style="height:46px">
+        <div class="tradingview-widget-container__widget" id="tvTicker"></div>
+    </div>
+</div>
+
+<!-- ══ MEGA SIGNAL BANNER ══ -->
+<div id="signalBanner" class="neutral">
+    <div style="max-width:1600px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+            <div class="tl-dot tl-red" id="tlRed"></div>
+            <div class="tl-dot tl-yellow" id="tlYellow"></div>
+            <div class="tl-dot tl-green" id="tlGreen"></div>
+        </div>
+        <div style="min-width:160px;flex-shrink:0">
+            <div id="bannerSignalWord" class="mono font-black" style="font-size:clamp(1.6rem,4vw,2.8rem);letter-spacing:0.06em;line-height:1;color:var(--muted)">LOADING…</div>
+            <div id="bannerSignalSub" class="text-xs mt-1" style="color:var(--muted)">Waiting for data</div>
+        </div>
+        <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);flex-shrink:0"></div>
+        <div style="flex-shrink:0">
+            <div style="color:var(--muted);font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase" id="bannerAssetLabel">-- · --</div>
+            <div id="bannerStratSummary" style="font-size:11px;color:#8899b0;margin-top:2px">--</div>
+        </div>
+        <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);flex-shrink:0"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
+            <div class="score-ring">
+                <svg width="56" height="56" viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="23"/><circle class="ring-val" cx="28" cy="28" r="23" id="ringVal" stroke="#8899b0" stroke-dasharray="144.5" stroke-dashoffset="144.5"/></svg>
+                <div class="ring-text" id="ringText" style="color:#e2eaf5">--</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted)">Score</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="banner-box bb-gray"><div style="color:var(--muted);font-size:9px;font-weight:700;letter-spacing:0.08em;margin-bottom:4px">ENTRY</div><div id="bannerEntry" style="font-family:'Space Mono',monospace;font-weight:900;font-size:0.95rem;color:#e2eaf5">--</div></div>
+            <div class="banner-box bb-green"><div style="color:var(--bull);font-size:9px;font-weight:700;letter-spacing:0.08em;margin-bottom:4px">TAKE PROFIT</div><div id="bannerTP" style="font-family:'Space Mono',monospace;font-weight:900;font-size:0.95rem;color:var(--bull)">--</div></div>
+            <div class="banner-box bb-red"><div style="color:var(--bear);font-size:9px;font-weight:700;letter-spacing:0.08em;margin-bottom:4px">STOP LOSS</div><div id="bannerSL" style="font-family:'Space Mono',monospace;font-weight:900;font-size:0.95rem;color:var(--bear)">--</div></div>
+            <div class="banner-box bb-gray"><div style="color:var(--muted);font-size:9px;font-weight:700;letter-spacing:0.08em;margin-bottom:4px">R:R RATIO</div><div id="bannerRR" style="font-family:'Space Mono',monospace;font-weight:900;font-size:0.95rem;color:var(--gold)">--</div></div>
+        </div>
+        <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);flex-shrink:0"></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="bannerPills"></div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.04)">
+                <div class="offline-dot" id="connDot"></div><span id="connLabel">Connecting…</span>
+            </div>
+            <button id="soundToggle" onclick="toggleSound()" title="Toggle sounds"><i class="fa-solid fa-bell-slash" id="soundIcon"></i></button>
+            <button onclick="openSettings()" style="cursor:pointer;border-radius:10px;padding:7px 12px;font-size:13px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--muted)"><i class="fa-solid fa-newspaper"></i></button>
+            <div style="text-align:right">
+                <div style="color:var(--muted);font-size:9px;font-weight:700;letter-spacing:0.08em">UPDATED</div>
+                <div id="bannerTimestamp" class="mono text-xs text-white">--</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="signalToast" class="hidden">
+    <div id="toastInner" style="background:#0d1624;border:1px solid var(--border);border-radius:14px;padding:14px 20px;min-width:230px;box-shadow:0 8px 32px rgba(0,0,0,0.6)">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);margin-bottom:6px">⚡ SIGNAL CHANGED</div>
+        <div id="toastText" style="font-family:'Space Mono',monospace;font-weight:900;font-size:1.35rem;color:white">--</div>
+        <div id="toastSub" style="font-size:11px;color:var(--muted);margin-top:3px">--</div>
+    </div>
+</div>
+
+<!-- HEADER -->
+<header class="relative z-10 px-4 md:px-8 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4" style="border-bottom:1px solid var(--border)">
+    <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3)">
+            <i class="fa-solid fa-chart-candlestick" style="color:var(--accent)"></i>
+        </div>
+        <div>
+            <h1 class="text-lg font-bold text-white">MarketPulse <span style="color:var(--accent)">Pro</span></h1>
+            <p class="text-xs" style="color:var(--muted)">8-Strategy Engine · TradingView Charts · Live Data</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+        <div class="relative">
+            <select id="assetSelector" class="appearance-none text-sm font-semibold rounded-xl px-4 py-2.5 pr-9 outline-none cursor-pointer" style="background:var(--panel);border:1px solid var(--border);color:#e2eaf5;min-width:210px">
+                <optgroup label="── Cryptocurrency">
+                    <option value="BTCUSDT">₿ Bitcoin (BTC/USD)</option>
+                    <option value="ETHUSDT">Ξ Ethereum (ETH/USD)</option>
+                    <option value="SOLUSDT">◎ Solana (SOL/USD)</option>
+                    <option value="BNBUSDT">◆ BNB (BNB/USD)</option>
+                    <option value="XRPUSDT">✦ Ripple (XRP/USD)</option>
+                </optgroup>
+                <optgroup label="── Forex Majors">
+                    <option value="EURUSDT">EUR/USD</option>
+                    <option value="GBPUSDT">GBP/USD</option>
+                    <option value="AUDUSDT">AUD/USD</option>
+                    <option value="USDJPY">USD/JPY</option>
+                    <option value="USDCAD">USD/CAD</option>
+                    <option value="USDCHF">USD/CHF</option>
+                    <option value="EURJPY">EUR/JPY</option>
+                    <option value="NZDUSDT">NZD/USD</option>
+                </optgroup>
+
+            </select>
+            <i class="fa-solid fa-chevron-down text-xs pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style="color:var(--muted)"></i>
+        </div>
+        <div class="flex gap-1 rounded-xl p-1" style="background:var(--panel);border:1px solid var(--border)">
+            <button data-interval="5m"  class="interval-btn px-3 py-1.5 text-xs font-bold rounded-lg" style="color:var(--muted)">5m</button>
+            <button data-interval="15m" class="interval-btn px-3 py-1.5 text-xs font-bold rounded-lg" style="color:var(--muted)">15m</button>
+            <button data-interval="1h"  class="interval-btn px-3 py-1.5 text-xs font-bold rounded-lg" style="color:var(--muted)">1H</button>
+            <button data-interval="4h"  class="interval-btn active px-3 py-1.5 text-xs font-bold rounded-lg">4H</button>
+            <button data-interval="1d"  class="interval-btn px-3 py-1.5 text-xs font-bold rounded-lg" style="color:var(--muted)">1D</button>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-2 rounded-xl" style="background:var(--panel);border:1px solid var(--border)">
+            <div class="offline-dot" id="headerLiveDot"></div>
+            <span class="text-xs font-semibold text-white" id="headerLiveLabel">LOADING</span>
+            <span class="text-xs mono" style="color:var(--muted)" id="lastUpdate">--</span>
+        </div>
+    </div>
+</header>
+
+<!-- MAIN -->
+<main class="relative z-10 p-4 md:p-6 space-y-5" style="max-width:1600px;margin:0 auto">
+
+    <!-- ══ TRADINGVIEW CHART + TECHNICAL ANALYSIS WIDGET ══ -->
+    <div class="grid gap-4" style="grid-template-columns:1fr 340px">
+
+        <!-- TradingView Advanced Chart -->
+        <div class="panel panel-tv" style="height:520px;overflow:hidden">
+            <div class="flex items-center gap-3 px-4 pt-4 pb-2 flex-shrink-0">
+                <div class="w-2 h-2 rounded-full" style="background:#2962ff"></div>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:#2962ff">TradingView Live Chart</span>
+                <span class="text-xs px-2 py-0.5 rounded-full ml-auto" style="background:rgba(41,98,255,0.15);color:#2962ff;border:1px solid rgba(41,98,255,0.3)">Real-Time</span>
+                <!-- Price source badge — updates dynamically in script.js -->
+                <span id="dataSourceBadge" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(0,212,255,0.07);color:var(--accent);border:1px solid rgba(0,212,255,0.3);font-family:'Space Mono',monospace;white-space:nowrap">📡 Binance/Kraken Feed</span>
+            </div>
+            <div id="tvChartContainer" style="height:470px"></div>
+        </div>
+
+        <!-- TradingView Technical Analysis Widget -->
+        <div class="panel" style="height:520px;overflow:hidden">
+            <div class="flex items-center gap-3 px-4 pt-4 pb-2">
+                <div class="w-2 h-2 rounded-full" style="background:var(--gold)"></div>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--gold)">TV Analysis</span>
+            </div>
+            <div id="tvTAContainer" style="height:470px;overflow:hidden"></div>
+        </div>
+    </div>
+
+    <!-- ══ MULTI-TIMEFRAME ANALYSIS ══ -->
+    <div class="panel p-5">
+        <div class="flex items-center gap-3 mb-4 flex-wrap">
+            <i class="fa-solid fa-clock-rotate-left" style="color:var(--accent)"></i>
+            <span class="text-sm font-bold text-white">Multi-Timeframe Confluence</span>
+            <span class="text-xs px-2 py-1 rounded-lg ml-2" style="background:rgba(0,212,255,0.08);color:var(--accent);border:1px solid rgba(0,212,255,0.2)">All 5 timeframes analyzed simultaneously</span>
+            <span id="mtfOverall" class="hc-badge hc-neutral ml-auto">Analyzing…</span>
+        </div>
+        <div class="mtf-grid" id="mtfGrid">
+            <div class="mtf-card"><div class="text-xs font-bold mb-1" style="color:var(--muted)">5m</div><div class="text-sm font-black mono text-white" id="mtf5m">--</div><div class="text-xs mt-1" style="color:var(--muted)" id="mtf5mSub">--</div></div>
+            <div class="mtf-card"><div class="text-xs font-bold mb-1" style="color:var(--muted)">15m</div><div class="text-sm font-black mono text-white" id="mtf15m">--</div><div class="text-xs mt-1" style="color:var(--muted)" id="mtf15mSub">--</div></div>
+            <div class="mtf-card"><div class="text-xs font-bold mb-1" style="color:var(--muted)">1H</div><div class="text-sm font-black mono text-white" id="mtf1h">--</div><div class="text-xs mt-1" style="color:var(--muted)" id="mtf1hSub">--</div></div>
+            <div class="mtf-card"><div class="text-xs font-bold mb-1" style="color:var(--muted)">4H</div><div class="text-sm font-black mono text-white" id="mtf4h">--</div><div class="text-xs mt-1" style="color:var(--muted)" id="mtf4hSub">--</div></div>
+            <div class="mtf-card"><div class="text-xs font-bold mb-1" style="color:var(--muted)">1D</div><div class="text-sm font-black mono text-white" id="mtf1d">--</div><div class="text-xs mt-1" style="color:var(--muted)" id="mtf1dSub">--</div></div>
+        </div>
+        <div id="mtfSummary" class="mt-3 text-xs" style="color:var(--muted)"></div>
+    </div>
+
+    <!-- ROW: Price card + Indicators + Confluence -->
+    <div class="grid gap-4" style="grid-template-columns:1fr 1fr 290px">
+        <div class="panel panel-accent p-6 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <img id="assetLogo" src="https://cryptologos.cc/logos/bitcoin-btc-logo.png" class="w-11 h-11 rounded-full object-cover p-0.5" style="background:rgba(255,255,255,0.06)" alt="">
+                    <div>
+                        <div id="assetName" class="font-bold text-white text-lg leading-none">Bitcoin</div>
+                        <div id="assetSymbolText" class="text-xs mt-0.5 mono" style="color:var(--muted)">BTC / USD</div>
+                    </div>
+                </div>
+                <div class="text-xs font-bold px-3 py-1 rounded-full" style="background:rgba(0,230,118,0.1);color:var(--bull);border:1px solid rgba(0,230,118,0.2)">LIVE</div>
+            </div>
+            <div class="mb-4">
+                <div id="priceSection" class="mono text-5xl font-black text-white tracking-tight mb-2"><i class="fa-solid fa-circle-notch fa-spin text-2xl" style="color:var(--muted)"></i></div>
+                <div id="priceChange" class="text-sm">--</div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 pt-4" style="border-top:1px solid var(--border)">
+                <div><div class="text-xs mb-1" style="color:var(--muted)">24H HIGH</div><div id="statHigh" class="mono text-sm font-bold" style="color:var(--bull)">--</div></div>
+                <div><div class="text-xs mb-1" style="color:var(--muted)">24H LOW</div><div id="statLow" class="mono text-sm font-bold" style="color:var(--bear)">--</div></div>
+                <div><div class="text-xs mb-1" style="color:var(--muted)"><span id="statVolLabel">VOLUME</span></div><div id="statVol" class="mono text-sm font-bold text-white">--</div></div>
+            </div>
+        </div>
+
+        <div class="panel p-5">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fa-solid fa-gauge-high text-sm" style="color:var(--accent)"></i>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--muted)">Technical Indicators</span>
+                <span class="ml-auto text-xs mono" style="color:var(--muted)" id="indicatorTimeframe">4H</span>
+            </div>
+            <div id="indicatorPanel"><div class="text-center py-6 text-sm" style="color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading…</div></div>
+        </div>
+
+        <div class="panel p-5 flex flex-col items-center text-center justify-between">
+            <div class="w-full">
+                <div class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--muted)">Master Confluence</div>
+                <div id="signalSection" class="signal-neutral w-full rounded-2xl px-4 py-5 mb-3 transition-all duration-500">
+                    <div class="text-xl font-black uppercase tracking-widest text-white" id="signalText"><i class="fa-solid fa-circle-notch fa-spin" style="color:var(--muted)"></i></div>
+                    <div class="text-xs mt-1" id="signalSubtext" style="color:var(--muted)">Analyzing…</div>
+                </div>
+                <div class="w-full mb-3">
+                    <div class="flex justify-between text-xs mb-1.5" style="color:var(--muted)"><span>Confluence</span><span id="confluenceScore" class="mono font-bold text-white">--/10</span></div>
+                    <div class="gauge-bar"><div class="gauge-fill" id="confluenceBar" style="width:0%;background:var(--muted)"></div></div>
+                </div>
+                <div class="mb-3">
+                    <div class="flex justify-between text-xs mb-1" style="color:var(--muted)"><span style="color:var(--bull);font-size:10px">● BULL</span><span style="color:var(--bear);font-size:10px">BEAR ●</span></div>
+                    <div class="vote-track"><div class="vote-bull-bar" id="voteBull" style="width:50%"></div><div class="vote-bear-bar" id="voteBear" style="width:50%"></div></div>
+                    <div class="flex justify-between text-xs mt-1 mono"><span id="voteBullPct" style="color:var(--bull)">50%</span><span id="voteBearPct" style="color:var(--bear)">50%</span></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 w-full text-xs">
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="mb-1" style="color:var(--muted)">RSI(14)</div><div id="rsiValue" class="mono font-bold text-white">--</div></div>
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="mb-1" style="color:var(--muted)">EMA(20)</div><div id="maValue" class="mono font-bold text-white">--</div></div>
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="mb-1" style="color:var(--muted)">MACD</div><div id="macdValue" class="mono font-bold text-white">--</div></div>
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="mb-1" style="color:var(--muted)">BB Width</div><div id="bbValue" class="mono font-bold text-white">--</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8 STRATEGY CARDS -->
+    <div class="panel p-5">
+        <div class="flex items-center gap-3 mb-4 flex-wrap">
+            <i class="fa-solid fa-chess-knight" style="color:var(--gold)"></i>
+            <span class="text-sm font-bold text-white">8-Strategy Confluence Engine</span>
+            <span id="strategyBadge" class="hc-badge hc-neutral">Analyzing…</span>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+                <span class="text-xs" style="color:var(--muted)">Agreements:</span>
+                <span id="agreeCount" class="mono text-sm font-bold text-white">--/8</span>
+            </div>
+        </div>
+        <div class="strategies-grid" id="strategyCards">
+            <div class="sc-neutral strat-card text-center py-6" style="grid-column:1/-1"><i class="fa-solid fa-circle-notch fa-spin mr-2" style="color:var(--muted)"></i><span style="color:var(--muted)">Running 8 strategy analyses…</span></div>
+        </div>
+        <div id="masterVerdictStrip" class="hidden verdict-neutral rounded-xl p-4 mt-4">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                <div>
+                    <div style="color:var(--muted);font-size:10px;font-weight:700;letter-spacing:0.1em;margin-bottom:4px">MASTER VERDICT</div>
+                    <div id="verdictDir" style="font-family:'Space Mono',monospace;font-size:1.5rem;font-weight:900;color:white">--</div>
+                    <div id="verdictSub" style="font-size:11px;color:var(--muted);margin-top:2px">--</div>
+                </div>
+                <div style="flex:1;min-width:200px;max-width:340px">
+                    <div class="flex justify-between text-xs mb-1" style="color:var(--muted)"><span>Bull weight</span><span>Bear weight</span></div>
+                    <div class="vote-track" style="height:10px"><div class="vote-bull-bar" id="masterBull" style="width:50%"></div><div class="vote-bear-bar" id="masterBear" style="width:50%"></div></div>
+                    <div class="flex justify-between mono text-xs mt-1 font-bold"><span id="masterBullPct" style="color:var(--bull)">50%</span><span id="masterBearPct" style="color:var(--bear)">50%</span></div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <div class="banner-box bb-green"><div style="color:var(--bull);font-size:9px;font-weight:700;margin-bottom:3px">TARGET TP</div><div id="verdictTP" style="font-family:'Space Mono',monospace;font-weight:900;color:var(--bull)">--</div></div>
+                    <div class="banner-box bb-red"><div style="color:var(--bear);font-size:9px;font-weight:700;margin-bottom:3px">STOP LOSS</div><div id="verdictSL" style="font-family:'Space Mono',monospace;font-weight:900;color:var(--bear)">--</div></div>
+                    <div class="banner-box bb-gray"><div style="color:var(--muted);font-size:9px;font-weight:700;margin-bottom:3px">ATR</div><div id="verdictATR" style="font-family:'Space Mono',monospace;font-weight:900;color:#e2eaf5">--</div></div>
+                    <div class="banner-box bb-gray"><div style="color:var(--muted);font-size:9px;font-weight:700;margin-bottom:3px">ADX</div><div id="verdictADX" style="font-family:'Space Mono',monospace;font-weight:900;color:#e2eaf5">--</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ NEWS + ECONOMIC CALENDAR ══ -->
+    <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+
+        <!-- News Panel with tabs -->
+        <div class="panel p-5">
+            <div class="flex items-center gap-2 mb-3">
+                <i class="fa-solid fa-newspaper text-sm" style="color:var(--gold)"></i>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--muted)">Market News</span>
+                <span id="newsBadge" class="text-xs px-2 py-0.5 rounded-full ml-1" style="background:rgba(255,209,102,0.1);color:var(--gold);border:1px solid rgba(255,209,102,0.2)">Live</span>
+                <span id="newsTimestamp" class="text-xs ml-auto" style="color:var(--muted)">--</span>
+            </div>
+            <div id="newsFeed" class="space-y-2 overflow-y-auto" style="max-height:340px">
+                <div class="text-center py-6 text-sm" style="color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Loading news…</div>
+            </div>
+        </div>
+
+        <!-- Economic Calendar -->
+        <div class="panel p-5">
+            <div class="flex items-center gap-2 mb-3">
+                <i class="fa-solid fa-calendar-days text-sm" style="color:var(--accent)"></i>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--muted)">Economic Calendar</span>
+                <span class="text-xs px-2 py-0.5 rounded-full ml-1" style="background:rgba(0,212,255,0.08);color:var(--accent);border:1px solid rgba(0,212,255,0.2)">TradingView</span>
+            </div>
+            <div id="tvCalendarContainer" style="height:340px;overflow:hidden"></div>
+        </div>
+    </div>
+
+    <!-- ══ ANALYSIS + CALCULATOR ══ -->
+    <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+        <div class="panel panel-accent p-6">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fa-solid fa-brain text-sm" style="color:var(--accent)"></i>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--muted)">Market Analysis Report</span>
+                <span class="ml-auto text-xs mono" style="color:var(--muted)" id="analysisTimeframe">4H</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="text-xs mb-1" style="color:var(--muted)">Trend</div><div id="trendLabel" class="font-bold text-sm text-white">--</div></div>
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="text-xs mb-1" style="color:var(--muted)">Momentum</div><div id="momentumLabel" class="font-bold text-sm text-white">--</div></div>
+                <div class="rounded-xl p-3 text-center" style="background:var(--ink);border:1px solid var(--border)"><div class="text-xs mb-1" style="color:var(--muted)">Volatility</div><div id="volatilityLabel" class="font-bold text-sm text-white">--</div></div>
+            </div>
+            <p id="analysisText" class="text-sm leading-relaxed mb-4" style="color:#b0c4d8">Gathering market data…</p>
+            <div id="entryLevelsSection" style="display:none">
+                <div class="text-xs font-bold uppercase tracking-widest mb-2" style="color:var(--muted)">ATR-Based Trade Levels</div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="rounded-xl p-3 text-center" style="background:rgba(0,230,118,0.05);border:1px solid rgba(0,230,118,0.2)"><div class="text-xs font-semibold mb-1" style="color:var(--bull)">ENTRY ZONE</div><div id="entryZone" class="mono text-sm font-bold text-white">--</div></div>
+                    <div class="rounded-xl p-3 text-center" style="background:rgba(255,61,90,0.05);border:1px solid rgba(255,61,90,0.2)"><div class="text-xs font-semibold mb-1" style="color:var(--bear)">STOP LOSS</div><div id="suggestSL" class="mono text-sm font-bold text-white">--</div></div>
+                    <div class="rounded-xl p-3 text-center" style="background:rgba(0,230,118,0.05);border:1px solid rgba(0,230,118,0.2)"><div class="text-xs font-semibold mb-1" style="color:var(--bull)">TARGET</div><div id="suggestTP" class="mono text-sm font-bold text-white">--</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-gold p-6">
+            <div class="flex items-center gap-2 mb-5">
+                <i class="fa-solid fa-calculator text-sm" style="color:var(--gold)"></i>
+                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--muted)">Trade Setup Calculator</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div><label class="text-xs font-semibold uppercase tracking-wider block mb-1.5" style="color:var(--muted)">Direction</label>
+                <select id="tradeType" class="w-full text-sm font-bold rounded-xl px-3 py-2.5 outline-none" style="background:var(--ink);border:1px solid var(--border);color:#e2eaf5"><option value="long">▲ LONG (Buy)</option><option value="short">▼ SHORT (Sell)</option></select></div>
+                <div><label class="text-xs font-semibold uppercase tracking-wider block mb-1.5" style="color:var(--muted)">Leverage</label>
+                <div class="flex"><span class="text-sm font-bold px-3 py-2.5 rounded-l-xl" style="background:var(--panel2);border:1px solid var(--border);border-right:0;color:var(--muted)">×</span><input type="number" id="tradeLeverage" value="10" min="1" max="125" class="w-full text-sm font-bold rounded-r-xl px-3 py-2.5 outline-none mono" style="background:var(--ink);border:1px solid var(--border);color:#e2eaf5"></div></div>
+            </div>
+            <div class="mb-3"><label class="text-xs font-semibold uppercase tracking-wider block mb-1.5" style="color:var(--muted)">Entry Price</label>
+            <input type="number" id="tradeEntry" step="any" placeholder="Uses current price if empty" class="w-full text-sm font-bold rounded-xl px-3 py-2.5 outline-none mono" style="background:var(--ink);border:1px solid var(--border);color:#e2eaf5"></div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div><label class="text-xs font-semibold uppercase tracking-wider block mb-1.5" style="color:var(--muted)">Risk % (SL)</label>
+                <div class="relative"><input type="number" id="tradeRisk" value="2" step="0.5" class="w-full text-sm font-bold rounded-xl px-3 py-2.5 pr-7 outline-none mono" style="background:var(--ink);border:1px solid var(--border);color:#e2eaf5"><span class="absolute right-3 top-2.5 text-xs font-bold" style="color:var(--muted)">%</span></div></div>
+                <div><label class="text-xs font-semibold uppercase tracking-wider block mb-1.5" style="color:var(--muted)">Reward % (TP)</label>
+                <div class="relative"><input type="number" id="tradeReward" value="6" step="0.5" class="w-full text-sm font-bold rounded-xl px-3 py-2.5 pr-7 outline-none mono" style="background:var(--ink);border:1px solid var(--border);color:#e2eaf5"><span class="absolute right-3 top-2.5 text-xs font-bold" style="color:var(--muted)">%</span></div></div>
+            </div>
+            <button id="calcTradeBtn" class="w-full py-3 rounded-xl font-bold text-sm tracking-wide text-black transition-all hover:opacity-90 active:scale-95" style="background:linear-gradient(135deg,#ffd166,#ffb700)"><i class="fa-solid fa-bolt mr-2"></i> CALCULATE SETUP</button>
+            <div id="calcResults" class="hidden mt-4 space-y-2">
+                <div class="rounded-xl p-4 flex justify-between items-center" style="background:rgba(0,230,118,0.07);border:1px solid rgba(0,230,118,0.25)"><div><div class="text-xs font-bold mb-0.5" style="color:var(--bull)">TAKE PROFIT</div><div id="tpPrice" class="mono text-2xl font-black" style="color:var(--bull)">--</div></div><div id="tpPl" class="font-bold text-sm px-3 py-1 rounded-lg" style="color:var(--bull);background:rgba(0,230,118,0.1)">--</div></div>
+                <div class="flex items-center gap-3"><div class="h-px flex-1" style="background:var(--border)"></div><div class="text-xs rounded-full px-3 py-1" style="color:var(--muted);background:var(--panel);border:1px solid var(--border)">Entry <span id="entryDisplay" class="mono text-white font-bold">--</span></div><div class="text-xs rounded-full px-3 py-1" style="color:var(--muted);background:var(--panel);border:1px solid var(--border)">RR <span id="rrRatio" class="mono font-bold" style="color:var(--gold)">--</span></div><div class="h-px flex-1" style="background:var(--border)"></div></div>
+                <div class="rounded-xl p-4 flex justify-between items-center" style="background:rgba(255,61,90,0.07);border:1px solid rgba(255,61,90,0.25)"><div><div class="text-xs font-bold mb-0.5" style="color:var(--bear)">STOP LOSS</div><div id="slPrice" class="mono text-2xl font-black" style="color:var(--bear)">--</div></div><div id="slPl" class="font-bold text-sm px-3 py-1 rounded-lg" style="color:var(--bear);background:rgba(255,61,90,0.1)">--</div></div>
+            </div>
+            <div id="calcPlaceholder" class="flex items-center justify-center gap-3 mt-4 py-4 text-sm" style="color:var(--muted)"><i class="fa-solid fa-bullseye opacity-40"></i><span>Fill the form above to calculate levels</span></div>
+        </div>
+    </div>
+
+    <!-- ══ FINAL VERDICT SIGNAL ══ -->
+    <div id="finalVerdictPanel" class="panel" style="border:2px solid var(--border);border-radius:20px;overflow:hidden;transition:border-color 0.6s,box-shadow 0.6s">
+
+        <!-- Top header bar -->
+        <div id="fvHeader" style="padding:18px 24px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;transition:background 0.6s">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,209,102,0.1);border:1px solid rgba(255,209,102,0.3)">
+                    <i class="fa-solid fa-trophy" style="color:var(--gold);font-size:15px"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold uppercase tracking-widest" style="color:var(--gold)">Final Verdict Signal</div>
+                    <div class="text-xs" style="color:var(--muted)">Highest-confidence synthesis · All 8 strategies + MTF + market context</div>
+                </div>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span id="fvConfidenceBadge" class="hc-badge hc-neutral">Calculating…</span>
+                <span id="fvTimestamp" class="text-xs mono" style="color:var(--muted)">--</span>
+            </div>
+        </div>
+
+        <!-- Main body -->
+        <div style="padding:24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px" id="fvGrid">
+
+            <!-- LEFT: The Verdict -->
+            <div style="grid-column:1/2">
+                <div class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--muted)">Consensus Decision</div>
+                <div id="fvVerdictWord" class="mono font-black" style="font-size:clamp(2.2rem,5vw,3.4rem);line-height:1;letter-spacing:0.05em;color:var(--muted)">LOADING…</div>
+                <div id="fvVerdictSub" class="text-xs mt-2" style="color:var(--muted)">Gathering data from all strategies…</div>
+
+                <!-- Conviction meter -->
+                <div class="mt-4">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-xs font-bold uppercase tracking-wider" style="color:var(--muted)">Conviction</span>
+                        <span id="fvConvPct" class="text-xs mono font-bold text-white">--%</span>
+                    </div>
+                    <div style="height:10px;border-radius:5px;background:var(--border);overflow:hidden">
+                        <div id="fvConvBar" style="height:100%;border-radius:5px;width:0%;background:var(--muted);transition:width 1.4s cubic-bezier(0.4,0,0.2,1),background 0.5s"></div>
+                    </div>
+                </div>
+
+                <!-- Bull vs Bear vote -->
+                <div class="mt-4">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-xs font-bold" style="color:var(--bull)" id="fvBullLabel">BULL 0%</span>
+                        <span class="text-xs font-bold" style="color:var(--bear)" id="fvBearLabel">BEAR 0%</span>
+                    </div>
+                    <div style="height:8px;border-radius:4px;overflow:hidden;background:var(--border);display:flex">
+                        <div id="fvBullBar" style="height:100%;background:var(--bull);border-radius:4px 0 0 4px;transition:width 1.4s ease;width:0%"></div>
+                        <div id="fvBearBar" style="height:100%;background:var(--bear);border-radius:0 4px 4px 0;margin-left:auto;transition:width 1.4s ease;width:0%"></div>
+                    </div>
+                </div>
+
+                <!-- Strategy alignment dots -->
+                <div class="mt-4">
+                    <div class="text-xs font-bold uppercase tracking-wider mb-2" style="color:var(--muted)">8-Strategy Alignment</div>
+                    <div id="fvAlignDots" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+                </div>
+            </div>
+
+            <!-- MIDDLE: Key Reasons + Context -->
+            <div style="grid-column:2/3;border-left:1px solid var(--border);padding-left:16px">
+                <div class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--muted)">Why This Signal</div>
+                <div id="fvReasons" style="display:flex;flex-direction:column;gap:7px">
+                    <div class="text-xs" style="color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Analysing…</div>
+                </div>
+
+                <div class="mt-4">
+                    <div class="text-xs font-bold uppercase tracking-widest mb-2" style="color:var(--muted)">Market Context</div>
+                    <div id="fvContext" style="display:flex;flex-direction:column;gap:5px"></div>
+                </div>
+
+                <!-- Risk Rating -->
+                <div class="mt-4 rounded-xl p-3" style="background:var(--ink);border:1px solid var(--border)">
+                    <div class="text-xs font-bold uppercase tracking-wider mb-2" style="color:var(--muted)">Trade Risk Rating</div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <div id="fvRiskDots" style="display:flex;gap:4px"></div>
+                        <span id="fvRiskLabel" class="text-xs font-bold" style="color:var(--gold)">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Precise Levels -->
+            <div style="grid-column:3/4;border-left:1px solid var(--border);padding-left:16px">
+                <div class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--muted)">Optimal Trade Levels</div>
+
+                <!-- Entry -->
+                <div class="rounded-xl p-3 mb-2" style="background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.2)">
+                    <div class="text-xs font-semibold mb-1" style="color:var(--accent)">⚡ ENTRY ZONE</div>
+                    <div id="fvEntry" class="mono text-xl font-black text-white">--</div>
+                    <div id="fvEntrySub" class="text-xs mt-0.5" style="color:var(--muted)">Current canonical price</div>
+                </div>
+
+                <!-- TP -->
+                <div class="rounded-xl p-3 mb-2" style="background:rgba(0,230,118,0.05);border:1px solid rgba(0,230,118,0.2)">
+                    <div class="text-xs font-semibold mb-1" style="color:var(--bull)">🎯 TAKE PROFIT</div>
+                    <div id="fvTP" class="mono text-xl font-black" style="color:var(--bull)">--</div>
+                    <div id="fvTPpct" class="text-xs mt-0.5" style="color:var(--muted)">ATR × 3.0</div>
+                </div>
+
+                <!-- SL -->
+                <div class="rounded-xl p-3 mb-2" style="background:rgba(255,61,90,0.05);border:1px solid rgba(255,61,90,0.2)">
+                    <div class="text-xs font-semibold mb-1" style="color:var(--bear)">🛡 STOP LOSS</div>
+                    <div id="fvSL" class="mono text-xl font-black" style="color:var(--bear)">--</div>
+                    <div id="fvSLpct" class="text-xs mt-0.5" style="color:var(--muted)">ATR × 1.5</div>
+                </div>
+
+                <!-- RR + ATR row -->
+                <div style="display:flex;gap:8px">
+                    <div class="rounded-xl p-3 flex-1 text-center" style="background:var(--ink);border:1px solid var(--border)">
+                        <div class="text-xs mb-1" style="color:var(--muted)">R:R Ratio</div>
+                        <div id="fvRR" class="mono font-black text-sm" style="color:var(--gold)">1 : 2</div>
+                    </div>
+                    <div class="rounded-xl p-3 flex-1 text-center" style="background:var(--ink);border:1px solid var(--border)">
+                        <div class="text-xs mb-1" style="color:var(--muted)">ATR</div>
+                        <div id="fvATR" class="mono font-black text-sm text-white">--</div>
+                    </div>
+                    <div class="rounded-xl p-3 flex-1 text-center" style="background:var(--ink);border:1px solid var(--border)">
+                        <div class="text-xs mb-1" style="color:var(--muted)">Score</div>
+                        <div id="fvScore" class="mono font-black text-sm" style="color:var(--accent)">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom summary bar -->
+        <div id="fvFooter" style="padding:12px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(0,0,0,0.15)">
+            <i class="fa-solid fa-circle-info text-xs" style="color:var(--muted)"></i>
+            <span id="fvSummaryLine" class="text-xs" style="color:var(--muted)">Waiting for strategy engine…</span>
+            <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap" id="fvPills"></div>
+        </div>
+    </div>
+
+    <div class="disclaimer p-4 flex items-start gap-3">
+        <i class="fa-solid fa-triangle-exclamation mt-0.5 flex-shrink-0" style="color:var(--gold)"></i>
+        <p class="text-xs leading-relaxed" style="color:var(--muted)"><strong style="color:var(--gold)">Educational Tool — Not Financial Advice:</strong> Live prices from TradingView (when synced) or Binance + Kraken feeds — both systems now use the <strong style="color:var(--accent)">same canonical price</strong> for the 8-strategy engine. No signal guarantees outcome. Always apply strict risk management. Never risk more than you can afford to lose.</p>
+    </div>
+</main>
+
+</div><!-- end #siteContent -->
+
+<script src="script.js"></script>
+</body>
+</html>
