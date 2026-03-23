@@ -23,8 +23,16 @@
 //  Generate new hashes at: https://emn178.github.io/online-tools/sha256.html
 // ═══════════════════════════════════════════════════════════════════════
 
-const _AUTH_HASH_USER = '01a402b933c5457e6eb3e8a12edcd8f4ee006e0c4bc031e70f50fcace2ec3993'; // Kavindu
-const _AUTH_HASH_PASS = '0f727180cb26001005264559844a251bf4029d6984ca2c1d6bf940bce0e7a85e'; // vishwa2004
+const USERS = [
+    {
+        usernameHash: '01a402b933c5457e6eb3e8a12edcd8f4ee006e0c4bc031e70f50fcace2ec3993', // Kavindu
+        passwordHash: '0f727180cb26001005264559844a251bf4029d6984ca2c1d6bf940bce0e7a85e'  // vishwa2004
+    },
+    {
+        usernameHash: 'fdf8ce725e42e2d263a1e732d8ca206d1f63d333f3a57c98e2a652211ab9d760', // Imanka
+        passwordHash: '4e7fd6577aeff7036b8b854a55e577a09044861fc34d36238163de73308bde1b'  //Imanka1
+    }
+];
 const _SESSION_KEY    = 'mp_pro_session';
 const _SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
