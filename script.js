@@ -123,7 +123,9 @@ async function attemptLogin() {
 
     const [hu, hp] = await Promise.all([_sha256(u), _sha256(p)]);
 
-    if (hu === _AUTH_HASH_USER && hp === _AUTH_HASH_PASS) {
+    const validUser = USERS.find(u => u.usernameHash === hu && u.passwordHash === hp);
+
+if (validUser) {
         // ✅ Correct — save session and reveal site
         if (_rememberMe) {
             localStorage.setItem(_SESSION_KEY, JSON.stringify({
