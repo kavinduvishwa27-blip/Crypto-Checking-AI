@@ -30,7 +30,7 @@ const USERS = [
     },
     {
         usernameHash: 'fdf8ce725e42e2d263a1e732d8ca206d1f63d333f3a57c98e2a652211ab9d760', // Imanka
-        passwordHash: '4e7fd6577aeff7036b8b854a55e577a09044861fc34d36238163de73308bde1b'  //Imanka1
+        passwordHash: '24464f2723864803c065c9766c0717a31b379a3af94005a59a08be483fc9308d'  //imanka1
     }
 ];
 const _SESSION_KEY    = 'mp_pro_session';
