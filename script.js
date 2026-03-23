@@ -32,6 +32,10 @@ const USERS = [
         usernameHash: 'fdf8ce725e42e2d263a1e732d8ca206d1f63d333f3a57c98e2a652211ab9d760', // Imanka
         passwordHash: '24464f2723864803c065c9766c0717a31b379a3af94005a59a08be483fc9308d'  //imanka1
     }
+        {
+        usernameHash: 'bc230e91dbe7f8e301380bd45df8c094a78f493a087a045f4d7ba0809ecc82b1', // Geethma
+        passwordHash: '14e37e2bae5fb6e13c0362e2fd0af3a8cdb4853cd385b220b325ddeaadba6b5d'  //geethma1
+}
 ];
 const _SESSION_KEY    = 'mp_pro_session';
 const _SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
